@@ -2,12 +2,11 @@ name: build-windows
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [ codex/pr74-windows-test-build ]
   workflow_dispatch:
 
 permissions:
-  contents: write  # needed to publish releases on tags
+  contents: read  # artifact-only PR test build
 
 # A newer push to the same ref cancels an in-progress build instead of piling up runs.
 concurrency:
@@ -19,6 +18,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: 9044e00fb0385f38a29d0e28fe2ac815ed2e86d1
+          persist-credentials: false
+      - name: Verify exact PR source
+        shell: pwsh
+        run: |
+          $expected = '9044e00fb0385f38a29d0e28fe2ac815ed2e86d1'
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $expected) { throw "Expected PR commit $expected, got $actual" }
+          Write-Host "Packaging PR #74 source commit: $actual"
       # uv provisions the interpreter itself (.python-version pins 3.12), so there's no
       # setup-python step; the cache keys off uv.lock, which pins every resolved version.
       - uses: astral-sh/setup-uv@v10.3.3
@@ -106,6 +115,16 @@ jobs:
       - name: Bundle ZipExtractor.exe
         shell: pwsh
         run: Copy-Item zipextractor_bin/ZipExtractor.exe dist/genericMud/
+      - name: Record test-build provenance
+        shell: pwsh
+        run: |
+          @"
+          genericMud PR #74 Windows test build
+          Application source: 9044e00fb0385f38a29d0e28fe2ac815ed2e86d1
+          PR branch: codex/vipmud-command-entry-prototype
+          Build workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          This is an unsigned test build, not a release. Do not install in-app updates while testing this PR.
+          "@ | Set-Content -Encoding utf8 dist/genericMud/BUILD-INFO.txt
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/genericMud -DestinationPath dist/genericMud-windows.zip
