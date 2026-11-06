@@ -43,9 +43,40 @@ jobs:
       - name: Fetch BASS
         run: uv run python tools/fetch_bass.py build/bass
       - name: Test Python
+        id: python_tests
+        # Keep the exact PR source available for NVDA investigation even when a
+        # platform regression fails. Its outcome and full JUnit report ship in the ZIP.
+        continue-on-error: true
         env:
           GENERICMUD_BASS_DIR: build/bass
-        run: uv run pytest -q
+        run: uv run pytest -q --junitxml=build/windows-tests.xml
+      - name: Capture native buffer failure details
+        if: steps.python_tests.outcome == 'failure'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GENERICMUD_BASS_DIR: build/bass
+        run: |
+          @'
+          import json
+          import sys
+          from tests.test_command_entry import _probe
+
+          def trace(frame, event, arg):
+              if event == "exception" and frame.f_code.co_name == "check_document" and arg[0] is AssertionError:
+                  entry = frame.f_locals.get("entry")
+                  sent = frame.f_locals.get("sent", [])
+                  if entry is not None:
+                      print("WINDOWS_NATIVE_FAILURE " + json.dumps({
+                          "text": entry.GetValue(), "selection": entry.GetSelection(),
+                          "last_position": entry.GetLastPosition(),
+                          "sent": [msg for _panel, msg in sent],
+                      }), flush=True)
+              return trace
+
+          sys.settrace(trace)
+          _probe()
+          '@ | uv run python -
       - name: Test web input
         run: |
           node --test tests/test_frontend_input.mjs tests/test_frontend_ws.mjs
@@ -123,8 +154,10 @@ jobs:
           Application source: 9044e00fb0385f38a29d0e28fe2ac815ed2e86d1
           PR branch: codex/vipmud-command-entry-prototype
           Build workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Windows Python test outcome: ${{ steps.python_tests.outcome }} (see WINDOWS-TEST-RESULTS.xml)
           This is an unsigned test build, not a release. Do not install in-app updates while testing this PR.
           "@ | Set-Content -Encoding utf8 dist/genericMud/BUILD-INFO.txt
+          Copy-Item build/windows-tests.xml dist/genericMud/WINDOWS-TEST-RESULTS.xml
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/genericMud -DestinationPath dist/genericMud-windows.zip
