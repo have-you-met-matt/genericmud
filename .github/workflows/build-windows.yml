@@ -2,12 +2,11 @@ name: build-windows
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [ codex/pr74-windows-test-build ]
   workflow_dispatch:
 
 permissions:
-  contents: write  # needed to publish releases on tags
+  contents: read  # artifact-only validation build
 
 # A newer push to the same ref cancels an in-progress build instead of piling up runs.
 concurrency:
@@ -19,6 +18,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: f20d3a7cab0cce6a517b531968bc696f230fafff
+          persist-credentials: false
+      - name: Verify exact PR source
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne 'f20d3a7cab0cce6a517b531968bc696f230fafff') { throw "Unexpected application source $actual" }
+          Write-Host "Packaging PR #74 source commit: $actual"
       # uv provisions the interpreter itself (.python-version pins 3.12), so there's no
       # setup-python step; the cache keys off uv.lock, which pins every resolved version.
       - uses: astral-sh/setup-uv@v10.3.3
@@ -36,10 +44,12 @@ jobs:
       - name: Test Python
         env:
           GENERICMUD_BASS_DIR: build/bass
-        run: uv run pytest -q
+        run: uv run pytest -q --junitxml=build/windows-tests.xml
       - name: Test web input
+        shell: bash
         run: |
-          node --test tests/test_frontend_input.mjs tests/test_frontend_ws.mjs
+          set -e
+          node --test tests/test_frontend_input.mjs tests/test_frontend_ws.mjs tests/test_frontend_menu.mjs tests/test_frontend_copyline.mjs
           node --check frontend/src/app.js
 
       # Fill the release body from CHANGELOG.md. self_update.check_for_update hands the
@@ -106,13 +116,31 @@ jobs:
       - name: Bundle ZipExtractor.exe
         shell: pwsh
         run: Copy-Item zipextractor_bin/ZipExtractor.exe dist/genericMud/
+      - name: Record source and isolate test-build updates
+        shell: pwsh
+        run: |
+          @"
+          genericMud PR #74 Windows x64 test build
+          Application source: f20d3a7cab0cce6a517b531968bc696f230fafff
+          Upstream base: 6b78da692b59b2c0ccbb22ef9023863d85367ad4
+          Build workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Windows tests passed before packaging. This is an unsigned test build, not a release.
+          Automatic startup update checks are disabled in the included portable profile.
+          "@ | Set-Content -Encoding utf8NoBOM dist/genericMud/BUILD-INFO.txt
+          Copy-Item build/windows-tests.xml dist/genericMud/WINDOWS-TEST-RESULTS.xml
+          New-Item -ItemType Directory -Force dist/genericMud/genericmud-data | Out-Null
+          @'
+          [update]
+          check_enabled = false
+          '@ | Set-Content -Encoding utf8NoBOM dist/genericMud/genericmud-data/update-prefs.toml
+          uv run python -c "from pathlib import Path; from genericmud.config.update_prefs import load_prefs; assert not load_prefs(Path('dist/genericMud/genericmud-data/update-prefs.toml')).check_enabled"
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/genericMud -DestinationPath dist/genericMud-windows.zip
       - uses: actions/upload-artifact@v7
-        continue-on-error: true  # a hit artifact-storage quota must not block the release publish
         with:
-          name: genericMud-windows
+          name: genericMud-pr74-windows-f20d3a7
+          if-no-files-found: error
           path: dist/genericMud-windows.zip
           retention-days: 14
       - name: Publish release
