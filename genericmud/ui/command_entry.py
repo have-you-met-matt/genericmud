@@ -45,18 +45,20 @@ class CommandEntryCtrl(wx.TextCtrl):
         prefix = value[:offset]
         if sys.platform == "darwin" and self.GetLastPosition() != len(value):
             return len(prefix.encode("utf-16-le")) // 2
-        low, high = 0, self.GetLastPosition()
+        # Windows GetRange normalizes even a trailing CR to LF: the middle
+        # and end of a CRLF can read back as the same prefix. Choose its last
+        # native position, never a caret between the two separator characters.
+        low, high = 0, self.GetLastPosition() + 1
         while low < high:
             middle = (low + high) // 2
-            if len(self.GetRange(0, middle).replace("\r\n", "\n")) < len(prefix):
+            if len(self.GetRange(0, middle).replace("\r\n", "\n")) <= len(prefix):
                 low = middle + 1
             else:
                 high = middle
-        while low < self.GetLastPosition() and self.text_range(0, low) != prefix:
-            low += 1
-        if self.text_range(0, low) != prefix:
+        position = low - 1
+        if self.text_range(0, position) != prefix:
             raise ValueError("The editor could not locate the command's text position")
-        return low
+        return position
 
     def line_number(self) -> int:
         return self.text_range(0, self.GetSelection()[0]).count("\n")

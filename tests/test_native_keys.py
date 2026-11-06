@@ -22,7 +22,10 @@ from genericmud.voice.router import VoiceRouter
 from tests.helpers import RecordingBackend
 
 wx = pytest.importorskip("wx", reason="native key routing requires wxPython")
-wx_app = importlib.import_module("genericmud.ui.wx_app")
+automation_manager = importlib.import_module("genericmud.ui.automation_manager")
+keyboard = importlib.import_module("genericmud.ui.keyboard")
+rule_editors = importlib.import_module("genericmud.ui.rule_editors")
+session_panel = importlib.import_module("genericmud.ui.session_panel")
 
 NUMPAD_CASES = [
     *((getattr(wx, f"WXK_NUMPAD{n}"), f"numpad{n}") for n in range(10)),
@@ -60,10 +63,10 @@ class KeyEvent:
 
 
 class PanelHarness:
-    _on_input_key = wx_app.SessionPanel._on_input_key
-    _on_output_key = wx_app.SessionPanel._on_output_key
-    _dispatch_bound_combo = wx_app.SessionPanel._dispatch_bound_combo
-    _send_command = wx_app.SessionPanel._send_command
+    _on_input_key = session_panel.SessionPanel._on_input_key
+    _on_output_key = session_panel.SessionPanel._on_output_key
+    _dispatch_bound_combo = session_panel.SessionPanel._dispatch_bound_combo
+    _send_command = session_panel.SessionPanel._send_command
 
     def __init__(self, *, compass: bool, bindings=(), keymap=None):
         self.sent = []
@@ -87,8 +90,8 @@ class PanelHarness:
 
 @pytest.mark.parametrize("code,name", NUMPAD_CASES)
 def test_numpad_canonical_names(code, name):
-    assert wx_app._key_combo(KeyEvent(code)) == name
-    assert wx_app._key_combo(KeyEvent(code), allow_numpad=False) is None
+    assert keyboard._key_combo(KeyEvent(code)) == name
+    assert keyboard._key_combo(KeyEvent(code), allow_numpad=False) is None
 
 
 @pytest.mark.parametrize("digit,command", [
@@ -151,7 +154,7 @@ def test_compass_toggle_takes_effect_immediately(handler):
 @pytest.mark.parametrize("code,name", NUMPAD_CASES)
 def test_key_capture_names_numpad_without_consulting_compass(code, name):
     values = []
-    wx_app._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=values.append), KeyEvent(code))
+    rule_editors._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=values.append), KeyEvent(code))
     assert values == [name]
 
 
@@ -161,7 +164,7 @@ def test_key_capture_names_numpad_without_consulting_compass(code, name):
 def test_key_capture_preserves_dialog_navigation(code, modifiers):
     values = []
     event = KeyEvent(code, **modifiers)
-    wx_app._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=values.append), event)
+    rule_editors._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=values.append), event)
     assert event.skipped
     assert values == []
 
@@ -180,7 +183,7 @@ def test_modified_numpad_matches_capture_and_dispatch_conventions(
     panel = PanelHarness(compass=compass, bindings=[(combo, "custom command")])
     event = KeyEvent(wx.WXK_NUMPAD_ADD, **modifiers)
     captured = []
-    wx_app._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=captured.append), event)
+    rule_editors._KeyCaptureCtrl._on_key(SimpleNamespace(SetValue=captured.append), event)
     assert captured == ([combo] if prefix else [])
 
     getattr(panel, handler)(event)
@@ -240,7 +243,7 @@ def test_saved_hotkey_explains_compass_only_when_it_blocks_use(
     tmp_path, action, combo, compass, enabled, hint,
 ):
     # Use the real manager handlers, validation and persistence without opening a dialog.
-    manager_type = wx_app.AutomationManagerDialog
+    manager_type = automation_manager.AutomationManagerDialog
     rule = UserKey(key=combo, send="look", enabled=enabled)
     original = replace(rule, enabled=not enabled) if action == "toggle" else rule
     spoken = []
@@ -283,26 +286,26 @@ def test_saved_hotkey_explains_compass_only_when_it_blocks_use(
 def test_altgr_typing_a_character_is_typing_not_a_ctrl_alt_combo(monkeypatch):
     # Windows reports AltGr as Ctrl+Alt: on a French keyboard AltGr+0 is @, on a German one
     # it is }. When the layout says the key types something, it must reach the input box.
-    monkeypatch.setattr(wx_app, "_altgr_types_a_character", lambda _event: True)
-    assert wx_app._key_combo(KeyEvent(ord("0"), ctrl=True, alt=True)) is None
+    monkeypatch.setattr(keyboard, "_altgr_types_a_character", lambda _event: True)
+    assert keyboard._key_combo(KeyEvent(ord("0"), ctrl=True, alt=True)) is None
 
 
 def test_ctrl_alt_on_a_key_that_types_nothing_stays_a_combo(monkeypatch):
-    monkeypatch.setattr(wx_app, "_altgr_types_a_character", lambda _event: False)
-    assert wx_app._key_combo(KeyEvent(ord("0"), ctrl=True, alt=True)) == "ctrl+alt+0"
+    monkeypatch.setattr(keyboard, "_altgr_types_a_character", lambda _event: False)
+    assert keyboard._key_combo(KeyEvent(ord("0"), ctrl=True, alt=True)) == "ctrl+alt+0"
 
 
 def test_altgr_is_only_asked_about_with_both_ctrl_and_alt(monkeypatch):
     asked = []
-    monkeypatch.setattr(wx_app, "_altgr_types_a_character", lambda event: asked.append(event))
-    assert wx_app._key_combo(KeyEvent(ord("1"), ctrl=True)) == "ctrl+1"
-    assert wx_app._key_combo(KeyEvent(ord("1"), alt=True)) == "alt+1"
+    monkeypatch.setattr(keyboard, "_altgr_types_a_character", lambda event: asked.append(event))
+    assert keyboard._key_combo(KeyEvent(ord("1"), ctrl=True)) == "ctrl+1"
+    assert keyboard._key_combo(KeyEvent(ord("1"), alt=True)) == "alt+1"
     assert asked == []
 
 
 def test_altgr_typing_reaches_the_input_box_past_the_channel_keys(monkeypatch):
     # The shipped keymap binds Ctrl+Alt+0 to the tenth channel message. AltGr+0 must still type.
-    monkeypatch.setattr(wx_app, "_altgr_types_a_character", lambda _event: True)
+    monkeypatch.setattr(keyboard, "_altgr_types_a_character", lambda _event: True)
     panel = PanelHarness(compass=True, keymap=load_keymap("vipmud"))
     event = KeyEvent(ord("0"), ctrl=True, alt=True)
     panel._on_input_key(event)
@@ -311,15 +314,15 @@ def test_altgr_typing_reaches_the_input_box_past_the_channel_keys(monkeypatch):
 
 
 def test_off_windows_the_layout_is_never_asked(monkeypatch):
-    monkeypatch.setattr(wx_app.sys, "platform", "linux")
-    assert wx_app._altgr_types_a_character(KeyEvent(ord("0"), ctrl=True, alt=True)) is False
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert keyboard._altgr_types_a_character(KeyEvent(ord("0"), ctrl=True, alt=True)) is False
 
 
 def test_a_layout_that_cannot_be_asked_leaves_the_shortcut_working(monkeypatch):
     # Pretend to be on Windows: the fake event has no raw key code, so asking fails, and the
     # key must stay the shortcut it always was rather than vanish.
-    monkeypatch.setattr(wx_app.sys, "platform", "win32")
-    assert wx_app._altgr_types_a_character(KeyEvent(ord("0"), ctrl=True, alt=True)) is False
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert keyboard._altgr_types_a_character(KeyEvent(ord("0"), ctrl=True, alt=True)) is False
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="asks real Windows keyboard layouts")
@@ -351,13 +354,14 @@ def test_real_windows_layouts_answer_the_altgr_question():
         english = loaded["00000409"]
         zero_key, zero_scan = 0x30, 0x0B
         e_key, e_scan = 0x45, 0x12
-        assert wx_app._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=german) is True  # }
-        assert wx_app._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=french) is True  # @
-        assert wx_app._ctrl_alt_types(e_key, e_scan, shift=False, layout=german) is True  # euro
+        # AltGr+0 types } on a German layout and @ on a French one.
+        assert keyboard._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=german) is True
+        assert keyboard._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=french) is True
+        assert keyboard._ctrl_alt_types(e_key, e_scan, shift=False, layout=german) is True  # euro
         # US English has no AltGr: Ctrl+Alt+0 and Ctrl+Alt+E type nothing, so they stay
         # shortcuts.
-        assert wx_app._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=english) is False
-        assert wx_app._ctrl_alt_types(e_key, e_scan, shift=False, layout=english) is False
+        assert keyboard._ctrl_alt_types(zero_key, zero_scan, shift=False, layout=english) is False
+        assert keyboard._ctrl_alt_types(e_key, e_scan, shift=False, layout=english) is False
     finally:
         _unload_layouts(user32, loaded, already)
 

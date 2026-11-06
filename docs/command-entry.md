@@ -15,6 +15,12 @@ one native editable document: earlier commands and several unsent drafts can coe
 and be changed or removed at their original positions. It is not a list of immutable
 sent commands. Each session owns a separate document.
 
+The editor uses the current UI split: session_panel chooses the control,
+command_box owns submission/editing and password isolation, output_box handles
+focus and link insertion, pack_window scopes plugin APIs, and main_window owns
+the saved preference. Keyboard naming continues to come from keyboard.py.
+wx_app remains the application launcher.
+
 | Key | Editable buffer behavior |
 | --- | --- |
 | Up/Down, Left/Right, Shift+arrows | Native caret movement and selection across existing rows. |
@@ -106,7 +112,9 @@ wrapping; VIPMud's exact wrapped-line behavior remains outside the compatibility
 
 Cocoa selection uses UTF-16 positions in the tested wx build while GetRange reads
 code points. The optional editor converts those positions explicitly, and other
-ports map through native range APIs to account for CRLF. A first-row Escape request
+ports map through native range APIs to account for CRLF. On Windows, a partial
+CRLF and a complete CRLF can read as the same normalized prefix; conversion uses
+the last matching native position so insertion never splits that separator. A first-row Escape request
 inside a CRLF is normalized to a valid caret rather than deliberately splitting a
 native separator. Other native editing/undo details can vary by platform.
 

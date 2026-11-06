@@ -7,11 +7,11 @@ what it is about to take: the world and its login, but not the logs it wrote or 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import pytest
 
 from genericmud.config.worlds import World
+from tests.ui_source import ui_source
 
 
 class _Credentials:
@@ -37,10 +37,10 @@ class _Panel:
 
 
 def _frame(*, panels: list[_Panel] | None = None):
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window
 
     panels = panels or []
-    frame = wx_app.GenericMudFrame.__new__(wx_app.GenericMudFrame)
+    frame = main_window.GenericMudFrame.__new__(main_window.GenericMudFrame)
     frame.book = type(
         "Book",
         (),
@@ -59,7 +59,6 @@ def _frame(*, panels: list[_Panel] | None = None):
 def answer(monkeypatch):
     """Answer the confirmation without showing it, and record what it asked."""
     wx = pytest.importorskip("wx")
-    from genericmud.ui import wx_app
 
     class FakeDialog:
         asked: list[str] = []
@@ -77,16 +76,16 @@ def answer(monkeypatch):
 
     FakeDialog.asked = []
     FakeDialog.result = wx.ID_YES
-    monkeypatch.setattr(wx_app.wx, "MessageDialog", FakeDialog)
+    monkeypatch.setattr(wx, "MessageDialog", FakeDialog)
     return FakeDialog
 
 
 def _saving(monkeypatch, worlds: list[World]) -> list[list[World]]:
-    from genericmud.ui import wx_app
+    from genericmud.ui import saved_worlds
 
     written: list[list[World]] = []
-    monkeypatch.setattr(wx_app, "load_worlds", lambda: list(worlds))
-    monkeypatch.setattr(wx_app, "save_worlds", lambda kept: written.append(list(kept)))
+    monkeypatch.setattr(saved_worlds, "load_worlds", lambda: list(worlds))
+    monkeypatch.setattr(saved_worlds, "save_worlds", lambda kept: written.append(list(kept)))
     return written
 
 
@@ -162,16 +161,17 @@ def test_a_tab_that_is_only_disconnected_is_not_mentioned(answer, monkeypatch):
 
 def test_a_failed_save_keeps_the_login(answer, monkeypatch):
     # The world is still in the file, so its password must stay with it.
-    from genericmud.ui import wx_app
+    wx = pytest.importorskip("wx")
+    from genericmud.ui import saved_worlds
 
-    monkeypatch.setattr(wx_app, "load_worlds", lambda: [World("Pen", "pen.example", 9500)])
+    monkeypatch.setattr(saved_worlds, "load_worlds", lambda: [World("Pen", "pen.example", 9500)])
 
     def refuse(_kept):
         raise OSError("disk full")
 
-    monkeypatch.setattr(wx_app, "save_worlds", refuse)
+    monkeypatch.setattr(saved_worlds, "save_worlds", refuse)
     told: list[str] = []
-    monkeypatch.setattr(wx_app.wx, "MessageBox", lambda text, *_a, **_k: told.append(text))
+    monkeypatch.setattr(wx, "MessageBox", lambda text, *_a, **_k: told.append(text))
     frame = _frame()
 
     frame._delete_saved_world(World("Pen", "pen.example", 9500))
@@ -210,7 +210,7 @@ def window():
 
 
 def _dialog(window, *names: str):
-    from genericmud.ui.wx_app import ConnectDialog
+    from genericmud.ui.connect_dialog import ConnectDialog
 
     return ConnectDialog(window, [World(name, "h.example", 4000) for name in names])
 
@@ -261,9 +261,9 @@ def test_the_delete_key_removes_the_picked_world(window):
         assert dialog._choice.GetSelection() == 0
         dialog._on_choice_key(_KeyEvent(wx.WXK_DELETE))
         # The accelerator and the button both end the dialog with the delete result.
-        from genericmud.ui import wx_app
+        from genericmud.ui import connect_dialog
 
-        assert ended[0] == wx_app._ID_DELETE_WORLD
+        assert ended[0] == connect_dialog._ID_DELETE_WORLD
     finally:
         dialog.Destroy()
 
@@ -271,12 +271,7 @@ def test_the_delete_key_removes_the_picked_world(window):
 def test_the_dialog_binds_no_bare_accelerator_of_its_own():
     # A key that is not in any label is a key nobody can find. The delete button uses a
     # mnemonic instead, and gives Alt+R back to the breadcrumb it belongs to.
-    source = (Path(__file__).resolve().parents[1] / "genericmud/ui/wx_app.py").read_text(
-        encoding="utf-8"
-    )
-    start = source.index("class ConnectDialog(")
-    end = source.index("class PackManagerDialog(")
-    assert "AcceleratorTable" not in source[start:end]
+    assert "AcceleratorTable" not in ui_source("ConnectDialog")
 
 
 def test_the_details_label_gave_up_its_d_rather_than_share_it(window):
@@ -339,7 +334,7 @@ def test_the_mac_delete_key_removes_the_picked_world(window, monkeypatch):
     # On a Mac keyboard the key labelled "delete" arrives as Backspace; the forward delete the
     # README's "Delete key" means elsewhere needs fn there.
     wx = pytest.importorskip("wx")
-    from genericmud.ui import wx_app
+    from genericmud.ui import connect_dialog
 
     dialog = _dialog(window, "Pen")
     ended: list[int] = []
@@ -347,7 +342,7 @@ def test_the_mac_delete_key_removes_the_picked_world(window, monkeypatch):
     try:
         monkeypatch.setattr(sys, "platform", "darwin")
         dialog._on_choice_key(_KeyEvent(wx.WXK_BACK))
-        assert ended == [wx_app._ID_DELETE_WORLD]
+        assert ended == [connect_dialog._ID_DELETE_WORLD]
     finally:
         dialog.Destroy()
 

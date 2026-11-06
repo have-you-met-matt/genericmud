@@ -45,7 +45,7 @@ def _accept(dialog) -> None:
 @pytest.mark.parametrize("interval", [1, 5, 300])
 def test_connection_settings_dialog_uses_named_native_controls(frame, enabled, interval):
     from genericmud.config.ui_prefs import UiPrefs
-    from genericmud.ui.wx_app import ConnectionSettingsDialog
+    from genericmud.ui.connect_dialog import ConnectionSettingsDialog
 
     prefs = UiPrefs(auto_reconnect=enabled, reconnect_interval=interval)
     dialog = ConnectionSettingsDialog(frame, prefs)
@@ -75,7 +75,7 @@ def test_connection_settings_dialog_uses_named_native_controls(frame, enabled, i
 
 
 def test_world_dialog_offers_every_encoding_and_starts_on_automatic(frame):
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame)
     try:
@@ -87,7 +87,7 @@ def test_world_dialog_offers_every_encoding_and_starts_on_automatic(frame):
 
 
 def test_world_dialog_round_trips_the_encoding(frame):
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame, World("Bylins", "bylins.example", 4000, encoding="koi8-r"))
     try:
@@ -101,7 +101,7 @@ def test_world_dialog_round_trips_the_encoding(frame):
 
 def test_world_dialog_label_precedes_the_encoding_choice(frame):
     # NVDA names a control from the StaticText created immediately before it.
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame)
     try:
@@ -114,7 +114,7 @@ def test_world_dialog_label_precedes_the_encoding_choice(frame):
 
 
 def test_connect_dialog_names_a_non_automatic_encoding(frame):
-    from genericmud.ui.wx_app import ConnectDialog
+    from genericmud.ui.connect_dialog import ConnectDialog
 
     dialog = ConnectDialog(
         frame,
@@ -168,7 +168,7 @@ def _labels(dialog) -> list[str]:
 
 
 def test_variables_dialog_reads_as_one_row_per_value_and_filters(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     dialog = VariablesDialog(frame, _rows, world_name="Aard")
     try:
@@ -190,7 +190,7 @@ def test_variables_dialog_reads_as_one_row_per_value_and_filters(frame):
 
 
 def test_variables_dialog_says_why_it_is_empty(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     empty = VariablesDialog(frame, lambda: ([], False), world_name="Aard")
     unanswered = VariablesDialog(frame, lambda: None, world_name="Aard")
@@ -204,7 +204,7 @@ def test_variables_dialog_says_why_it_is_empty(frame):
 
 
 def test_variables_dialog_copies_the_reference_and_keeps_the_row_on_refresh(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     spoken: list[str] = []
     dialog = VariablesDialog(frame, _rows, world_name="Aard", announce=spoken.append)
@@ -228,7 +228,7 @@ def test_variables_dialog_copies_the_reference_and_keeps_the_row_on_refresh(fram
 
 
 def test_variables_picker_returns_the_chosen_row(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     dialog = VariablesDialog(frame, _rows, world_name="", pick=True)
     try:
@@ -244,7 +244,7 @@ def test_variables_picker_returns_the_chosen_row(frame):
 
 def test_rule_editors_offer_variables_only_with_a_live_session(frame, tmp_path):
     from genericmud.packs.user_rules import UserAlias, UserKey, UserTrigger
-    from genericmud.ui.wx_app import AliasEditorDialog, KeyEditorDialog, TriggerEditorDialog
+    from genericmud.ui.rule_editors import AliasEditorDialog, KeyEditorDialog, TriggerEditorDialog
 
     makers = (
         lambda fetch: TriggerEditorDialog(frame, tmp_path, UserTrigger(), variables=fetch),
@@ -264,14 +264,14 @@ def test_rule_editors_offer_variables_only_with_a_live_session(frame, tmp_path):
 
 def test_inserting_a_variable_puts_its_reference_at_the_caret(frame, tmp_path, monkeypatch):
     from genericmud.packs.user_rules import UserKey
-    from genericmud.ui import wx_app
+    from genericmud.ui import rule_editors, variables_dialog
 
     def choose_first(picker):
         picker.chosen = picker._shown[0]
         return wx.ID_OK
 
-    monkeypatch.setattr(wx_app.VariablesDialog, "ShowModal", choose_first)
-    editor = wx_app.KeyEditorDialog(frame, tmp_path, UserKey(key="f2", speak="HP "),
+    monkeypatch.setattr(variables_dialog.VariablesDialog, "ShowModal", choose_first)
+    editor = rule_editors.KeyEditorDialog(frame, tmp_path, UserKey(key="f2", speak="HP "),
                                     variables=_rows)
     try:
         editor._speak.SetInsertionPointEnd()
@@ -284,12 +284,12 @@ def test_inserting_a_variable_puts_its_reference_at_the_caret(frame, tmp_path, m
 def test_focus_returns_to_the_field_only_after_the_picker_has_closed(frame, tmp_path,
                                                                         monkeypatch):
     from genericmud.packs.user_rules import UserKey
-    from genericmud.ui import wx_app
+    from genericmud.ui import rule_editors, variables_dialog
 
     deferred: list = []
-    monkeypatch.setattr(wx_app.VariablesDialog, "ShowModal", lambda _picker: wx.ID_CANCEL)
-    monkeypatch.setattr(wx_app.wx, "CallAfter", lambda func, *args: deferred.append((func, args)))
-    editor = wx_app.KeyEditorDialog(frame, tmp_path, UserKey(), variables=_rows)
+    monkeypatch.setattr(variables_dialog.VariablesDialog, "ShowModal", lambda _picker: wx.ID_CANCEL)
+    monkeypatch.setattr(wx, "CallAfter", lambda func, *args: deferred.append((func, args)))
+    editor = rule_editors.KeyEditorDialog(frame, tmp_path, UserKey(), variables=_rows)
     try:
         focused: list = []
         monkeypatch.setattr(editor._speak, "SetFocus", lambda: focused.append(True))
@@ -303,7 +303,7 @@ def test_focus_returns_to_the_field_only_after_the_picker_has_closed(frame, tmp_
 
 
 def test_deferred_focus_on_a_closed_window_is_harmless(frame):
-    from genericmud.ui.wx_app import _focus_if_alive
+    from genericmud.ui.variables_dialog import _focus_if_alive
 
     field = wx.TextCtrl(frame)
     field.Destroy()
@@ -315,14 +315,14 @@ def test_a_password_typed_at_a_hidden_prompt_stays_out_of_the_command_history(fr
     import asyncio
 
     from genericmud.bridge import protocol
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     try:
         panel._handle_message(protocol.input_masked(True))
         panel.input.SetValue("hunter2")
@@ -343,16 +343,16 @@ def test_disconnecting_at_a_password_prompt_makes_typing_ordinary_again(frame, m
     from genericmud.app import EngineApp
     from genericmud.bridge import protocol
     from genericmud.protocol import telnet as T
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     posted: list[dict] = []
     try:
         voice = VoiceRouter(RecordingBackend(), clock=lambda: 0.0)
@@ -378,7 +378,7 @@ def test_disconnecting_at_a_password_prompt_makes_typing_ordinary_again(frame, m
 )
 def test_a_hotkey_on_a_key_genericmud_keeps_says_why_it_would_never_run(frame, combo, reason):
     from genericmud.config.keymap import load_keymap
-    from genericmud.ui.wx_app import _hotkey_taken
+    from genericmud.ui.keyboard import _hotkey_taken
 
     message = _hotkey_taken(combo, load_keymap("vipmud"))
     assert message is not None and message.startswith(reason)
@@ -394,7 +394,7 @@ def test_the_automation_manager_refuses_a_hotkey_genericmud_already_uses(
 
     from genericmud.config.keymap import load_keymap
     from genericmud.packs.user_rules import UserKey
-    from genericmud.ui import wx_app
+    from genericmud.ui import automation_manager, rule_editors
 
     panel = types.SimpleNamespace(
         world=World("Test", "mud.example", 4000),
@@ -403,10 +403,10 @@ def test_the_automation_manager_refuses_a_hotkey_genericmud_already_uses(
         _keymap=load_keymap("vipmud"),
     )
     answers = iter([wx.ID_OK, wx.ID_CANCEL])  # press OK, read the refusal, then cancel
-    monkeypatch.setattr(wx_app.KeyEditorDialog, "ShowModal", lambda _editor: next(answers))
+    monkeypatch.setattr(rule_editors.KeyEditorDialog, "ShowModal", lambda _editor: next(answers))
     told: list[str] = []
-    monkeypatch.setattr(wx_app.wx, "MessageBox", lambda text, *_args: told.append(text))
-    manager = wx_app.AutomationManagerDialog(frame, panel)
+    monkeypatch.setattr(wx, "MessageBox", lambda text, *_args: told.append(text))
+    manager = automation_manager.AutomationManagerDialog(frame, panel)
     try:
         assert manager._edit_rule("key", UserKey(key="alt+up", send="score")) is None
         assert len(told) == 1 and "Alt+Up" in told[0]
@@ -421,7 +421,7 @@ def test_the_automation_manager_refuses_a_hotkey_genericmud_already_uses(
 
 
 def test_a_pick_list_starts_on_the_packs_item_and_answers_its_index(frame):
-    from genericmud.ui.wx_app import PackQuestionDialog
+    from genericmud.ui.pack_dialogs import PackQuestionDialog
 
     request = {
         "kind": "choice", "title": "select monster", "prompt": "select monster",
@@ -442,7 +442,7 @@ def test_a_pick_list_starts_on_the_packs_item_and_answers_its_index(frame):
 def test_a_list_with_no_item_named_starts_with_nothing_selected(frame):
     # MUSHclient's listbox selects nothing without a default, and OK alone answers nil:
     # the mapper's "Choose exit to delete" deletes whatever comes back.
-    from genericmud.ui.wx_app import PackQuestionDialog
+    from genericmud.ui.pack_dialogs import PackQuestionDialog
 
     request = {"kind": "choice", "title": "", "prompt": "", "items": ["a", "b"], "selected": None}
     dialog = PackQuestionDialog(frame, request, "Miriani")
@@ -456,7 +456,7 @@ def test_a_list_with_no_item_named_starts_with_nothing_selected(frame):
 
 
 def test_a_several_item_list_ticks_the_defaults_and_answers_every_selected_index(frame):
-    from genericmud.ui.wx_app import PackQuestionDialog
+    from genericmud.ui.pack_dialogs import PackQuestionDialog
 
     request = {
         "kind": "choices", "title": "Food", "prompt": "Pick",
@@ -472,7 +472,7 @@ def test_a_several_item_list_ticks_the_defaults_and_answers_every_selected_index
 
 
 def test_a_text_question_fills_in_the_default_and_answers_what_was_typed(frame):
-    from genericmud.ui.wx_app import PackQuestionDialog
+    from genericmud.ui.pack_dialogs import PackQuestionDialog
 
     request = {"kind": "text", "title": "Who", "prompt": "Name & rank?", "default": "Bob",
                "multiline": False}
@@ -510,7 +510,7 @@ def test_a_msgbox_has_mushclients_buttons_default_and_escape(
     # Escape is Cancel where there is one and OK on a lone OK; on Yes/No and
     # Abort/Retry/Ignore it does nothing, as on Windows' own message boxes.
     from genericmud.scripting.api import MESSAGE_BUTTONS
-    from genericmud.ui.wx_app import PackMessageDialog
+    from genericmud.ui.pack_dialogs import PackMessageDialog
 
     request = {"kind": "message", "title": "Q", "prompt": "Sure & certain?", "buttons": buttons,
                "icon": "?", "default": default}
@@ -529,14 +529,16 @@ def test_a_msgbox_has_mushclients_buttons_default_and_escape(
 def _question_panel(frame, monkeypatch, parent=None):
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(parent or frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(
+        parent or frame, loop, {}, World("Test", "mud.example", 4000)
+    )
     return panel, loop
 
 
@@ -576,7 +578,7 @@ def test_a_packs_question_is_shown_on_the_ui_thread_and_answered_to_the_loop_thr
 ):
     import time
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import pack_dialogs
 
     shown: list[str] = []
 
@@ -585,7 +587,7 @@ def test_a_packs_question_is_shown_on_the_ui_thread_and_answered_to_the_loop_thr
         dialog._control.SetSelection(1)
         return wx.ID_OK
 
-    monkeypatch.setattr(wx_app.PackQuestionDialog, "ShowModal", answer_fox)
+    monkeypatch.setattr(pack_dialogs.PackQuestionDialog, "ShowModal", answer_fox)
     panel, loop = _question_panel(frame, monkeypatch)
     try:
         request = {"kind": "choice", "title": "", "prompt": "Choose an item",
@@ -603,9 +605,9 @@ def test_a_packs_question_is_shown_on_the_ui_thread_and_answered_to_the_loop_thr
 
 
 def test_an_unanswered_question_gives_up_as_cancelled(frame, monkeypatch):
-    from genericmud.ui import wx_app
+    from genericmud.ui import pack_window
 
-    monkeypatch.setattr(wx_app, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(pack_window, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.05)
     panel, loop = _question_panel(frame, monkeypatch)
     try:
         request = {"kind": "text", "title": "Name", "prompt": "Name?", "default": "",
@@ -655,9 +657,9 @@ def test_the_world_is_named_on_a_question_when_several_are_open(frame, monkeypat
 
 
 def test_the_asking_packs_timers_get_their_turns_while_it_waits(frame, monkeypatch):
-    from genericmud.ui import wx_app
+    from genericmud.ui import pack_window
 
-    monkeypatch.setattr(wx_app, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(pack_window, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.3)
     panel, loop = _question_panel(frame, monkeypatch)
     try:
         turns: list[int] = []
@@ -676,16 +678,16 @@ def test_a_question_on_screen_isnt_given_up_on_like_one_that_never_appeared(
 ):
     import time
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import pack_dialogs, pack_window
 
-    monkeypatch.setattr(wx_app, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(pack_window, "_PACK_QUESTION_SHOW_TIMEOUT_S", 0.2)
 
     def slow_reader(dialog):
         time.sleep(0.6)  # reading Cosmic Rage's paragraphs
         dialog._control.SetSelection(0)
         return wx.ID_OK
 
-    monkeypatch.setattr(wx_app.PackQuestionDialog, "ShowModal", slow_reader)
+    monkeypatch.setattr(pack_dialogs.PackQuestionDialog, "ShowModal", slow_reader)
     panel, loop = _question_panel(frame, monkeypatch)
     try:
         request = {"kind": "choice", "title": "Gags", "prompt": "Gags",
@@ -728,7 +730,7 @@ def test_closing_the_tab_tears_the_session_down_even_if_a_question_wont_close(
 ):
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import pack_dialogs
 
     panel, loop = _question_panel(frame, monkeypatch)
     torn_down: list[bool] = []
@@ -739,7 +741,7 @@ def test_closing_the_tab_tears_the_session_down_even_if_a_question_wont_close(
 
     monkeypatch.setattr(panel, "_withdraw_question", broken)
     try:
-        panel._questions.append(wx_app._PackQuestion({"kind": "text"}))
+        panel._questions.append(pack_dialogs._PackQuestion({"kind": "text"}))
         panel.close()
         loop.run_until_complete(asyncio.sleep(0.01))
         assert torn_down == [True]
@@ -749,7 +751,7 @@ def test_closing_the_tab_tears_the_session_down_even_if_a_question_wont_close(
 
 
 def test_world_dialog_round_trips_command_stacking_and_logging(frame):
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     world = World(
         "Chat", "chatmud.com", 7777, command_stacking=False, command_separator="|",
@@ -769,11 +771,11 @@ def test_world_dialog_round_trips_command_stacking_and_logging(frame):
 
 
 def test_world_dialog_refuses_a_separator_that_cant_work(frame, monkeypatch):
-    from genericmud.ui import wx_app
+    from genericmud.ui import world_dialog
 
     told: list[str] = []
-    monkeypatch.setattr(wx_app.wx, "MessageBox", lambda text, *_args: told.append(text))
-    dialog = wx_app.WorldDialog(frame, World("A", "a.example", 23))
+    monkeypatch.setattr(wx, "MessageBox", lambda text, *_args: told.append(text))
+    dialog = world_dialog.WorldDialog(frame, World("A", "a.example", 23))
     try:
         dialog._separator.SetValue("/")
         _accept(dialog)
@@ -791,16 +793,16 @@ def test_editing_a_world_changes_its_open_tab_at_once(frame, monkeypatch):
     import asyncio
 
     from genericmud.app import EngineApp
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("W", "w.example", 23))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("W", "w.example", 23))
     try:
         panel.app = EngineApp(VoiceRouter(RecordingBackend(), clock=lambda: 0.0), keymap={})
         edited = World(
@@ -837,7 +839,7 @@ def test_editing_a_world_changes_its_open_tab_at_once(frame, monkeypatch):
 def test_the_connection_menu_item_names_what_it_will_do():
     # One item, relabelled: Ctrl+D has to mean "drop it" while connected and "bring it
     # back" once it is down, so the label has to follow the tab, not the menu.
-    from genericmud.ui.wx_app import _connection_menu_label
+    from genericmud.ui.main_window import _connection_menu_label
 
     assert _connection_menu_label(True) == "&Disconnect\tCtrl+D"
     assert _connection_menu_label(False) == "&Reconnect\tCtrl+D"
@@ -1114,13 +1116,13 @@ def test_a_disconnected_tab_still_runs_genericmuds_own_commands(frame, monkeypat
     from genericmud.app import EngineApp
     from genericmud.session.hub import SessionHub
     from genericmud.transport.connection import MudConnection
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
 
     asked: list[str] = []
     monkeypatch.setattr(
-        wx_app.SessionPanel, "_prompt_reconnect",
+        session_panel.SessionPanel, "_prompt_reconnect",
         lambda panel: asked.append(panel.input.GetValue()),
     )
     panel, loop = _question_panel(frame, monkeypatch)
@@ -1156,13 +1158,13 @@ def test_ctrl_d_works_in_the_first_tab_after_a_menu_was_opened_with_none(
     # opening a tab didn't bring it back: Ctrl+D did nothing until a menu was opened again.
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window, session_panel
     from tests.helpers import RecordingBackend
 
     monkeypatch.setenv("HOME", str(tmp_path))  # the frame reads and writes its config
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr(wx_app, "make_voice_backend", RecordingBackend)
-    monkeypatch.setattr(wx_app, "make_diagnostic_log", lambda: None)
+    monkeypatch.setattr(main_window, "make_voice_backend", RecordingBackend)
+    monkeypatch.setattr(main_window, "make_diagnostic_log", lambda: None)
 
     startup_finished = asyncio.Event()
 
@@ -1170,13 +1172,13 @@ def test_ctrl_d_works_in_the_first_tab_after_a_menu_was_opened_with_none(
         panel._connect_finished = True  # a completed but disconnected startup
         startup_finished.set()
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     pressed: list[str] = []
     monkeypatch.setattr(
-        wx_app.SessionPanel, "reconnect", lambda panel: pressed.append(panel.world.name)
+        session_panel.SessionPanel, "reconnect", lambda panel: pressed.append(panel.world.name)
     )
     loop = asyncio.new_event_loop()
-    main = wx_app.GenericMudFrame(loop, {})
+    main = main_window.GenericMudFrame(loop, {})
     try:
         item = main._connection_item
         menu_open = wx.MenuEvent(wx.wxEVT_MENU_OPEN, 0, main.GetMenuBar().GetMenu(0))
@@ -1199,18 +1201,18 @@ def test_ctrl_d_works_in_the_first_tab_after_a_menu_was_opened_with_none(
 def test_the_soundpacks_menu_opens_a_notepad_the_player_picks(frame, tmp_path, monkeypatch):
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window, session_panel
     from tests.helpers import RecordingBackend
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr(wx_app, "make_voice_backend", RecordingBackend)
-    monkeypatch.setattr(wx_app, "make_diagnostic_log", lambda: None)
+    monkeypatch.setattr(main_window, "make_voice_backend", RecordingBackend)
+    monkeypatch.setattr(main_window, "make_diagnostic_log", lambda: None)
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
 
     class _Chooser:
         def __init__(self, _parent, _message, _caption, choices):
@@ -1225,9 +1227,9 @@ def test_the_soundpacks_menu_opens_a_notepad_the_player_picks(frame, tmp_path, m
         def Destroy(self):
             pass
 
-    monkeypatch.setattr(wx_app.wx, "SingleChoiceDialog", _Chooser)
+    monkeypatch.setattr(wx, "SingleChoiceDialog", _Chooser)
     loop = asyncio.new_event_loop()
-    main = wx_app.GenericMudFrame(loop, {})
+    main = main_window.GenericMudFrame(loop, {})
     try:
         spoken: list[str] = []
         monkeypatch.setattr(main, "announce", spoken.append)
@@ -1250,12 +1252,24 @@ def test_the_soundpacks_menu_opens_a_notepad_the_player_picks(frame, tmp_path, m
         loop.close()
 
 
-def test_a_pack_update_from_its_repository_says_what_it_did():
-    from genericmud.packs import GitUpdateResult
-    from genericmud.ui.wx_app import _git_update_message
+def test_a_pack_update_from_its_repository_says_what_it_did(monkeypatch):
+    # What the Manage Soundpacks dialog shows once an update from a pack's repository is done.
+    from types import SimpleNamespace
 
-    assert _git_update_message(GitUpdateResult("Erion", up_to_date=True)) == "Erion is up to date."
-    message = _git_update_message(GitUpdateResult(
+    from genericmud.packs import GitUpdateResult
+    from genericmud.ui.soundpack_manager import PackManagerDialog
+
+    shown: list[str] = []
+    monkeypatch.setattr(wx, "MessageBox", lambda text, *_args: shown.append(text))
+    manager = SimpleNamespace(_alive=True, _diag=None, _refresh_packs=lambda: None)
+
+    def message_for(result: GitUpdateResult) -> str:
+        shown.clear()
+        PackManagerDialog._on_updated(manager, result.name, result)
+        return shown[0]
+
+    assert message_for(GitUpdateResult("Erion", up_to_date=True)) == "Erion is up to date."
+    message = message_for(GitUpdateResult(
         "Toastush", up_to_date=False, written=34, removed=2,
         new_versions=["worlds/Miriani.MCL"],
     ))
@@ -1264,7 +1278,7 @@ def test_a_pack_update_from_its_repository_says_what_it_did():
         "your copy stayed, and the pack's new version is next to it as worlds/Miriani.MCL.new. "
         "Reconnect to apply."
     )
-    several = _git_update_message(GitUpdateResult(
+    several = message_for(GitUpdateResult(
         "Erion", up_to_date=False, written=1, new_versions=["a.mcl", "b.ini"],
     ))
     assert several == (
@@ -1283,7 +1297,7 @@ def test_a_search_goes_from_the_line_the_reader_is_standing_on(frame, monkeypatc
     from genericmud.app import EngineApp
     from genericmud.bridge import protocol
     from genericmud.protocol.telnet import DataReceived
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
     from genericmud.ui.scrollback import FindState
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
@@ -1291,9 +1305,9 @@ def test_a_search_goes_from_the_line_the_reader_is_standing_on(frame, monkeypatc
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     posted: list[dict] = []
     try:
         voice = VoiceRouter(RecordingBackend(), clock=lambda: 0.0)
@@ -1356,7 +1370,7 @@ def test_after_the_output_puts_the_reader_back_at_the_bottom_f3_searches_from_th
     from genericmud.app import EngineApp
     from genericmud.bridge import protocol
     from genericmud.protocol.telnet import DataReceived
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
     from genericmud.ui.scrollback import FindState
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
@@ -1364,9 +1378,9 @@ def test_after_the_output_puts_the_reader_back_at_the_bottom_f3_searches_from_th
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     posted: list[dict] = []
     try:
         voice = VoiceRouter(RecordingBackend(), clock=lambda: 0.0)
@@ -1428,7 +1442,7 @@ def test_the_window_tells_packs_the_mud_connected_only_once_it_has(frame, monkey
     import asyncio
 
     from genericmud.packs import PackStore
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_connection, session_panel
     from tests.helpers import RecordingBackend
 
     store = PackStore(tmp_path / "store")
@@ -1483,12 +1497,14 @@ def test_the_window_tells_packs_the_mud_connected_only_once_it_has(frame, monkey
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
-    monkeypatch.setattr(wx_app, "MudConnection", _Connection)
-    monkeypatch.setattr(wx_app, "make_voice_backend", lambda: backend)
-    monkeypatch.setattr(wx_app, "make_sound_backend", lambda **_kwargs: None)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_connection, "MudConnection", _Connection)
+    monkeypatch.setattr(session_connection, "make_voice_backend", lambda: backend)
+    monkeypatch.setattr(session_connection, "make_sound_backend", lambda **_kwargs: None)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000), packs=store)
+    panel = session_panel.SessionPanel(
+        frame, loop, {}, World("Test", "mud.example", 4000), packs=store
+    )
     panel._prefs.auto_reconnect = False
     try:
         loop.run_until_complete(panel._start_inner())
@@ -1511,26 +1527,26 @@ def test_the_world_in_front_is_the_selected_tab_while_genericmud_is(frame, tmp_p
     # is the active one.
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window, session_panel
     from tests.helpers import RecordingBackend
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr(wx_app, "make_voice_backend", RecordingBackend)
-    monkeypatch.setattr(wx_app, "make_diagnostic_log", lambda: None)
+    monkeypatch.setattr(main_window, "make_voice_backend", RecordingBackend)
+    monkeypatch.setattr(main_window, "make_diagnostic_log", lambda: None)
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     told: list[tuple[str, bool]] = []
     monkeypatch.setattr(
-        wx_app.SessionPanel, "set_focused",
+        session_panel.SessionPanel, "set_focused",
         lambda panel, focused: told.append((panel.world.name, focused)),
     )
     in_front = [True]
     loop = asyncio.new_event_loop()
-    main = wx_app.GenericMudFrame(loop, {})
+    main = main_window.GenericMudFrame(loop, {})
     monkeypatch.setattr(main, "_world_in_front", lambda: in_front[0])
     try:
         main.open_session(World("One", "one.example", 4000))
@@ -1552,14 +1568,14 @@ def test_the_world_in_front_is_the_selected_tab_while_genericmud_is(frame, tmp_p
 def test_a_session_tells_its_packs_each_change_in_front_once(frame, monkeypatch):
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
 
     class _App:
         heard: list[bool] = []
@@ -1586,30 +1602,30 @@ def test_genericmud_is_in_front_while_it_is_the_active_program(frame, tmp_path, 
     # puts the world behind, as a notepad does in MUSHclient.
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window
     from tests.helpers import RecordingBackend
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr(wx_app, "make_voice_backend", RecordingBackend)
-    monkeypatch.setattr(wx_app, "make_diagnostic_log", lambda: None)
+    monkeypatch.setattr(main_window, "make_voice_backend", RecordingBackend)
+    monkeypatch.setattr(main_window, "make_diagnostic_log", lambda: None)
 
     class _Notepad:
         pass
 
-    monkeypatch.setattr(wx_app, "PackNotepadFrame", _Notepad)
+    monkeypatch.setattr(main_window, "PackNotepadFrame", _Notepad)
     active_program = [True]
     monkeypatch.setattr(wx.GetApp(), "IsActive", lambda: active_program[0])
     loop = asyncio.new_event_loop()
-    main = wx_app.GenericMudFrame(loop, {})
+    main = main_window.GenericMudFrame(loop, {})
     try:
-        monkeypatch.setattr(wx_app.wx, "GetActiveWindow", lambda: None)  # a native message box
+        monkeypatch.setattr(wx, "GetActiveWindow", lambda: None)  # a native message box
         assert main._world_in_front()
-        monkeypatch.setattr(wx_app.wx, "GetActiveWindow", lambda: main)
+        monkeypatch.setattr(wx, "GetActiveWindow", lambda: main)
         assert main._world_in_front()
-        monkeypatch.setattr(wx_app.wx, "GetActiveWindow", lambda: _Notepad())
+        monkeypatch.setattr(wx, "GetActiveWindow", lambda: _Notepad())
         assert not main._world_in_front()
-        monkeypatch.setattr(wx_app.wx, "GetActiveWindow", lambda: main)
+        monkeypatch.setattr(wx, "GetActiveWindow", lambda: main)
         active_program[0] = False  # another program is in front
         assert not main._world_in_front()
     finally:
@@ -1621,7 +1637,7 @@ def test_genericmud_is_in_front_while_it_is_the_active_program(frame, tmp_path, 
 def test_the_sounds_folder_says_what_blank_means(frame):
     # After installing a soundpack the box was blank and nothing said why, which read as
     # "this world has no sounds". Blank means the pack plays its own.
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame)
     try:
@@ -1637,7 +1653,7 @@ def test_the_sounds_folder_says_what_blank_means(frame):
 def test_the_world_dialog_prefills_saves_and_moves_a_stored_login(frame, tmp_path):
     from genericmud.config.worlds import World
     from genericmud.session.credentials import PlaintextCredentialStore
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     store = PlaintextCredentialStore(tmp_path / "c.json")
     store.set("Old", "hero", "secret")
@@ -1660,7 +1676,7 @@ def test_a_soundpack_world_on_another_server_gets_no_saved_login(frame, tmp_path
     # must not be handed that login, and renaming it must not take the original's login away.
     from genericmud.config.worlds import World
     from genericmud.session.credentials import PlaintextCredentialStore
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     store = PlaintextCredentialStore(tmp_path / "c.json")
     store.set("Erion", "hero", "secret")
@@ -1683,8 +1699,7 @@ def test_a_soundpack_world_on_another_server_gets_no_saved_login(frame, tmp_path
 
 def test_a_login_the_store_refuses_keeps_the_dialog_open_and_says_why(frame, monkeypatch):
     from genericmud.config.worlds import World
-    from genericmud.ui import wx_app
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     class LockedStore:
         def get(self, world):
@@ -1697,7 +1712,7 @@ def test_a_login_the_store_refuses_keeps_the_dialog_open_and_says_why(frame, mon
             pass
 
     told: list[str] = []
-    monkeypatch.setattr(wx_app.wx, "MessageBox", lambda text, *_args: told.append(text))
+    monkeypatch.setattr(wx, "MessageBox", lambda text, *_args: told.append(text))
     dialog = WorldDialog(frame, World("gw", "h.example", 4000), credentials=LockedStore())
     ended: list[int] = []
     dialog.EndModal = ended.append
@@ -1713,7 +1728,7 @@ def test_a_login_the_store_refuses_keeps_the_dialog_open_and_says_why(frame, mon
 
 def test_a_world_dialog_note_comes_first_and_labels_no_control(frame):
     # NVDA reads a dialog's text that labels no control as the dialog opens.
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame, note="The pack is in. Press Enter & connect.")
     plain = WorldDialog(frame)
@@ -1735,13 +1750,13 @@ def test_installing_a_pack_with_its_own_sounds_says_the_folder_can_stay_blank(
     import asyncio
     from types import SimpleNamespace
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import main_window, soundpack_setup
     from tests.helpers import RecordingBackend
 
     monkeypatch.setenv("HOME", str(tmp_path))  # the frame reads and writes its config
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr(wx_app, "make_voice_backend", RecordingBackend)
-    monkeypatch.setattr(wx_app, "make_diagnostic_log", lambda: None)
+    monkeypatch.setattr(main_window, "make_voice_backend", RecordingBackend)
+    monkeypatch.setattr(main_window, "make_diagnostic_log", lambda: None)
     shown: list[dict] = []
 
     class _Dialog:
@@ -1755,9 +1770,9 @@ def test_installing_a_pack_with_its_own_sounds_says_the_folder_can_stay_blank(
             pass
 
     loop = asyncio.new_event_loop()
-    main = wx_app.GenericMudFrame(loop, {})
+    main = main_window.GenericMudFrame(loop, {})
     try:
-        monkeypatch.setattr(wx_app, "WorldDialog", _Dialog)
+        monkeypatch.setattr(soundpack_setup, "WorldDialog", _Dialog)
         pack = SimpleNamespace(id="sc", dialect="vipmud")
         main._confirm_and_connect(World("Star Conquest", "squidsoft.net", 7777), pack)
         assert shown[0]["title"] == "Confirm World"
@@ -1770,7 +1785,7 @@ def test_installing_a_pack_with_its_own_sounds_says_the_folder_can_stay_blank(
 
 def test_revealing_the_password_keeps_what_was_typed(frame, tmp_path):
     from genericmud.config.worlds import World
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame, World("W", "h.example", 4000))
     try:
@@ -1792,7 +1807,7 @@ def test_revealing_the_password_keeps_what_was_typed(frame, tmp_path):
 def test_clearing_both_login_fields_forgets_the_stored_login(frame, tmp_path):
     from genericmud.config.worlds import World
     from genericmud.session.credentials import PlaintextCredentialStore
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     store = PlaintextCredentialStore(tmp_path / "c.json")
     store.set("Gone", "hero", "secret")
@@ -1811,7 +1826,7 @@ def test_clearing_both_login_fields_forgets_the_stored_login(frame, tmp_path):
 def test_a_new_world_starts_on_no_auto_connect(frame):
     # With the login boxes empty there is nothing to send, so a new world must not offer to
     # send one; Automatic is a deliberate switch once a login has been stored.
-    from genericmud.ui.wx_app import WorldDialog
+    from genericmud.ui.world_dialog import WorldDialog
 
     dialog = WorldDialog(frame)
     try:
@@ -1822,10 +1837,10 @@ def test_a_new_world_starts_on_no_auto_connect(frame):
 
 
 def test_the_copy_box_opens_with_the_whole_line_selected_and_copies_a_part(frame):
-    from genericmud.ui import wx_app
+    from genericmud.ui import output_dialogs
 
     line = "Zugg tells you, the code is 4521"
-    dialog = wx_app.CopyLineDialog(frame, line)
+    dialog = output_dialogs.CopyLineDialog(frame, line)
     try:
         assert dialog._line.GetValue() == line
         assert dialog._line.GetStringSelection() == line  # Enter alone copies all of it
@@ -1852,24 +1867,24 @@ def test_the_copy_box_fills_the_clipboard_and_says_so(
     import asyncio
 
     from genericmud.bridge import protocol
-    from genericmud.ui import wx_app
+    from genericmud.ui import output_box, output_dialogs, session_panel
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
-    monkeypatch.setattr(wx_app.CopyLineDialog, "ShowModal", lambda _self: answer)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(output_dialogs.CopyLineDialog, "ShowModal", lambda _self: answer)
     clipboard: list[str] = []
 
     def set_clipboard(text: str) -> bool:
         clipboard.append(text)
         return clipboard_free
 
-    monkeypatch.setattr(wx_app, "_set_clipboard_text", set_clipboard)
+    monkeypatch.setattr(output_box, "_set_clipboard_text", set_clipboard)
     spoken: list[str] = []
     frame.announce = spoken.append  # the real window speaks through its announcer
     loop = asyncio.new_event_loop()
-    panel = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    panel = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     try:
         panel._handle_message(protocol.copy_line("A wolf howls"))
         assert clipboard == copied
@@ -1886,10 +1901,10 @@ def test_the_copy_box_fills_the_clipboard_and_says_so(
 
 def test_the_mud_data_editor_round_trips_a_rule(frame, tmp_path):
     from genericmud.packs.user_rules import UserWatch
-    from genericmud.ui import wx_app
+    from genericmud.ui import rule_editors
 
     rule = UserWatch(name="Char.Vitals.hp", only_changes=False, speak="${value} health")
-    dialog = wx_app.DataRuleEditorDialog(frame, tmp_path, rule)
+    dialog = rule_editors.DataRuleEditorDialog(frame, tmp_path, rule)
     try:
         assert dialog.result() == rule
         assert dialog._only_changes.GetValue() is False
@@ -1901,7 +1916,7 @@ def test_the_manager_offers_mud_data_sixth_and_makes_a_rule(frame, tmp_path, mon
     import types
 
     from genericmud.packs.user_rules import UserWatch
-    from genericmud.ui import wx_app
+    from genericmud.ui import automation_manager, rule_editors
 
     panel = types.SimpleNamespace(
         world=World("Test", "mud.example", 4000),
@@ -1909,16 +1924,18 @@ def test_the_manager_offers_mud_data_sixth_and_makes_a_rule(frame, tmp_path, mon
         variable_snapshot=None,
         _keymap={},
     )
-    monkeypatch.setattr(wx_app.DataRuleEditorDialog, "ShowModal", lambda _editor: wx.ID_OK)
-    manager = wx_app.AutomationManagerDialog(frame, panel)
+    monkeypatch.setattr(rule_editors.DataRuleEditorDialog, "ShowModal", lambda _editor: wx.ID_OK)
+    manager = automation_manager.AutomationManagerDialog(frame, panel)
     try:
         assert manager._category.GetString(5).startswith("MUD data")
         rule = UserWatch(name="Char.Vitals.hp", speak="${value}")
         assert manager._edit_rule("data", rule) == rule
         told: list[str] = []
-        monkeypatch.setattr(wx_app.wx, "MessageBox", lambda text, *_args: told.append(text))
+        monkeypatch.setattr(wx, "MessageBox", lambda text, *_args: told.append(text))
         answers = iter([wx.ID_OK, wx.ID_CANCEL])
-        monkeypatch.setattr(wx_app.DataRuleEditorDialog, "ShowModal", lambda _e: next(answers))
+        monkeypatch.setattr(
+            rule_editors.DataRuleEditorDialog, "ShowModal", lambda _e: next(answers)
+        )
         assert manager._edit_rule("data", UserWatch(name="")) is None  # a name is required
         assert told and "the name of a value the MUD sends" in told[0]
     finally:
@@ -1938,7 +1955,7 @@ def _aged_rows():
 
 
 def test_variables_most_recent_first_says_how_long_ago(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     dialog = VariablesDialog(frame, _aged_rows, world_name="Aard")
     try:
@@ -1955,7 +1972,7 @@ def test_variables_most_recent_first_says_how_long_ago(frame):
 
 
 def test_watch_this_makes_a_rule_for_a_mud_value_but_not_a_script_one(frame):
-    from genericmud.ui.wx_app import VariablesDialog
+    from genericmud.ui.variables_dialog import VariablesDialog
 
     watched: list[str] = []
     dialog = VariablesDialog(
@@ -1982,11 +1999,11 @@ def test_typing_while_it_retries_by_itself_says_still_connecting_instead_of_aski
     import asyncio
 
     from genericmud.transport.connection import MudConnection
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
 
     asked: list[str] = []
     monkeypatch.setattr(
-        wx_app.SessionPanel, "_prompt_reconnect",
+        session_panel.SessionPanel, "_prompt_reconnect",
         lambda panel: asked.append(panel.input.GetValue()),
     )
     panel, loop = _question_panel(frame, monkeypatch)

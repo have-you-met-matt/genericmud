@@ -90,7 +90,7 @@ def _probe():
     from genericmud.config.keymap import load_keymap
     from genericmud.config.ui_prefs import UiPrefs
     from genericmud.config.worlds import World
-    from genericmud.ui.wx_app import SessionPanel
+    from genericmud.ui.session_panel import SessionPanel
 
     app = wx.App(False)
     frame = wx.Frame(None, title="Isolated genericMud OS keyboard test", size=(700, 520))

@@ -164,3 +164,29 @@ explicit opt-in with GITHUB_ACTIONS set also skipped before importing wx. These 
   cancellation, especially Enter during composition; Standard regressions with NVDA.
 
 PR #74 remains draft pending the Windows/screen-reader and IME checks above.
+
+## Windows regression and upstream UI migration
+
+The earlier Windows run 42249119571 failed before the upstream UI refactor. A
+second trace of unchanged 9044e00 reproduced the same failure: after submitting
+`north`, GetLastPosition was 7, but the editor placed the caret at 6. Both
+GetRange(0, 6) and GetRange(0, 7) returned the normalized `north\n`. Position 6 was
+inside the native CRLF. Typing there left a separator behind the next draft;
+Down reused that separator, and following input joined the draft as
+`look targetsouth`. This is a product caret-conversion bug, not a changed expected
+result, an upstream refactor regression or duplicate Enter dispatch.
+
+The conversion now chooses the last matching native prefix position, after the
+complete CRLF. Four deterministic range regressions failed before this fix.
+The native probe retains its original buffer/dispatch assertions, adds the exact
+after-Enter caret check, and inserts text at legal boundaries around multiple
+newlines, emoji, CJK and a combining sequence. Cocoa normalizes a caret inside a
+base-plus-combining-mark grapheme to its edge, so native insertion tests use
+legal grapheme boundaries; the conversion unit test covers every code point.
+
+The feature was migrated from original base a763bf4cdee275c56e4b772d09e34da9c23babb8
+onto upstream 6b78da692b59b2c0ccbb22ef9023863d85367ad4. It follows session_panel,
+command_box, output_box, pack_window and main_window instead of retaining old
+classes in wx_app. Standard's control and dispatch path remain the upstream ones.
+Cross-platform automated results and the exact test-build source are recorded in
+PR #74 and BUILD-INFO.txt; screen-reader/IME validation remains outstanding.

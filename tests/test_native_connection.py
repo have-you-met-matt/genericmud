@@ -11,28 +11,28 @@ from genericmud.config.ui_prefs import UiPrefs
 from genericmud.config.worlds import World
 from tests.helpers import RecordingBackend
 
-pytest.importorskip("wx", reason="native session lifecycle requires wxPython")
-from genericmud.ui import wx_app  # noqa: E402
+wx = pytest.importorskip("wx", reason="native session lifecycle requires wxPython")
+from genericmud.ui import main_window, session_connection, session_panel  # noqa: E402
 
 
 class Panel:
     # Run the real lifecycle methods without constructing controls or requiring a display.
-    _start = wx_app.SessionPanel._start
-    _start_inner = wx_app.SessionPanel._start_inner
-    _send = wx_app.SessionPanel._send
-    _reconnect = wx_app.SessionPanel._reconnect
-    _adopt_saved_world = wx_app.SessionPanel._adopt_saved_world
-    _target_for_reconnect = wx_app.SessionPanel._target_for_reconnect
-    _do_disconnect = wx_app.SessionPanel._do_disconnect
-    _teardown = wx_app.SessionPanel._teardown
-    close = wx_app.SessionPanel.close
-    disconnect = wx_app.SessionPanel.disconnect
-    is_connected = wx_app.SessionPanel.is_connected
-    apply_connection_settings = wx_app.SessionPanel.apply_connection_settings
-    _apply_connection_settings = wx_app.SessionPanel._apply_connection_settings
+    _start = session_panel.SessionPanel._start
+    _start_inner = session_panel.SessionPanel._start_inner
+    _send = session_panel.SessionPanel._send
+    _reconnect = session_panel.SessionPanel._reconnect
+    _adopt_saved_world = session_panel.SessionPanel._adopt_saved_world
+    _target_for_reconnect = session_panel.SessionPanel._target_for_reconnect
+    _do_disconnect = session_panel.SessionPanel._do_disconnect
+    _teardown = session_panel.SessionPanel._teardown
+    close = session_panel.SessionPanel.close
+    disconnect = session_panel.SessionPanel.disconnect
+    is_connected = session_panel.SessionPanel.is_connected
+    apply_connection_settings = session_panel.SessionPanel.apply_connection_settings
+    _apply_connection_settings = session_panel.SessionPanel._apply_connection_settings
 
     def is_connecting(self):
-        return wx_app.SessionPanel.is_connecting(self)
+        return session_panel.SessionPanel.is_connecting(self)
 
     def __init__(self, monkeypatch):
         self._loop = asyncio.get_running_loop()
@@ -48,14 +48,14 @@ class Panel:
         self.world = World("Test", "mud.example", 4000)
         # No saved worlds here: a reconnect re-reads the saved world, and these tests are not
         # about that -- the real config folder should not be read while testing either.
-        monkeypatch.setattr(wx_app, "load_worlds", list)
+        monkeypatch.setattr(session_connection, "load_worlds", list)
         self.posted = []
         self.backend = RecordingBackend()
         self._post = self.posted.append
         self._send_raw = self._sound_error = self._ask_from_pack = lambda *args: None
         self.close_notepads = lambda: None
-        monkeypatch.setattr(wx_app, "make_voice_backend", lambda: self.backend)
-        monkeypatch.setattr(wx_app, "make_sound_backend", lambda **kwargs: None)
+        monkeypatch.setattr(session_connection, "make_voice_backend", lambda: self.backend)
+        monkeypatch.setattr(session_connection, "make_sound_backend", lambda **kwargs: None)
 
 
 class Writer:
@@ -269,8 +269,8 @@ async def test_ctrl_d_and_menu_offer_to_stop_pending_connections(monkeypatch, st
             GetItemLabel=lambda: "", SetItemLabel=labels.append, Enable=lambda value: None,
         ),
     )
-    wx_app.GenericMudFrame._refresh_connection_item(frame)
-    wx_app.GenericMudFrame._on_disconnect(frame, None)
+    main_window.GenericMudFrame._refresh_connection_item(frame)
+    main_window.GenericMudFrame._on_disconnect(frame, None)
     expected = "reconnect" if state == "idle" else "disconnect"
     assert actions == [expected]
     assert labels == [f"&{expected.capitalize()}\tCtrl+D"]
@@ -402,7 +402,7 @@ async def test_ctrl_d_stops_the_attempt_then_reuses_the_same_tab(monkeypatch, ph
         await attempt
     panel.backend.spoken.clear()
     frame = SimpleNamespace(_active_panel=lambda: panel)
-    wx_app.GenericMudFrame._on_disconnect(frame, None)
+    main_window.GenericMudFrame._on_disconnect(frame, None)
 
     async def stopped():
         while panel.is_connected() or panel.is_connecting():
@@ -545,7 +545,7 @@ async def test_connection_settings_save_and_reach_all_sessions(monkeypatch, tmp_
         panel._prefs = prefs
         await panel._start()
     path = tmp_path / "ui-prefs.toml"
-    monkeypatch.setattr(wx_app, "save_ui_prefs", lambda value: save_ui_prefs(value, path))
+    monkeypatch.setattr(main_window, "save_ui_prefs", lambda value: save_ui_prefs(value, path))
     destroyed = []
 
     class Dialog:
@@ -553,7 +553,7 @@ async def test_connection_settings_save_and_reach_all_sessions(monkeypatch, tmp_
             assert current is prefs
 
         def ShowModal(self):
-            return wx_app.wx.ID_OK if accepted else wx_app.wx.ID_CANCEL
+            return wx.ID_OK if accepted else wx.ID_CANCEL
 
         def get_settings(self):
             return True, 300
@@ -561,13 +561,13 @@ async def test_connection_settings_save_and_reach_all_sessions(monkeypatch, tmp_
         def Destroy(self):
             destroyed.append(True)
 
-    monkeypatch.setattr(wx_app, "ConnectionSettingsDialog", Dialog)
+    monkeypatch.setattr(main_window, "ConnectionSettingsDialog", Dialog)
     frame = SimpleNamespace(
         _prefs=prefs,
         book=SimpleNamespace(GetPageCount=lambda: 2, GetPage=lambda index: panels[index]),
     )
     try:
-        wx_app.GenericMudFrame._on_connection_settings(frame, None)
+        main_window.GenericMudFrame._on_connection_settings(frame, None)
         assert destroyed == [True]
         if accepted:
             await sleeps.next(300)

@@ -30,6 +30,7 @@ def test_native_command_entry_scenarios():
 def _probe():
     import threading
     import time
+    import unicodedata
     from types import SimpleNamespace
     from unittest.mock import patch
 
@@ -40,7 +41,8 @@ def _probe():
     from genericmud.config.ui_prefs import UiPrefs
     from genericmud.config.worlds import World
     from genericmud.ui.command_entry import CommandEntryCtrl
-    from genericmud.ui.wx_app import GenericMudFrame, SessionPanel
+    from genericmud.ui.main_window import GenericMudFrame
+    from genericmud.ui.session_panel import SessionPanel
     from genericmud.voice.router import VoiceRouter
     from tests.helpers import RecordingBackend
 
@@ -107,6 +109,8 @@ def _probe():
     def check_document():
         entry.WriteText("north")
         enter()
+        assert entry.GetValue() == "north\n"
+        assert entry.GetSelection() == (entry.GetLastPosition(),) * 2
         entry.WriteText("look target")
         key(entry, wx.WXK_DOWN)
         entry.WriteText("south")
@@ -204,6 +208,26 @@ def _probe():
         key(entry, wx.WXK_RETURN, ctrl=True)
         assert entry.GetSelection() == (entry.GetLastPosition(),) * 2
         assert alpha._prefs.autoretype is False  # no conflicting default action
+        # Insertion after each logical boundary must not split a native CRLF
+        # or surrogate pair. Check visible text, not just GetRange round trips:
+        # on Windows both halves of CRLF can read as the same normalized prefix.
+        document = "north\n🐉 e\u0301界\n\nunsent"
+        for offset in range(len(document) + 1):
+            # Cocoa snaps an insertion inside e + combining accent to the
+            # grapheme's edge. Exercise legal native caret positions here;
+            # the range-conversion unit test still covers every code point.
+            if offset < len(document) and unicodedata.combining(document[offset]):
+                continue
+            entry.SetValue(document)
+            position(offset)
+            entry.WriteText("X")
+            assert entry.GetValue() == document[:offset] + "X" + document[offset:], (
+                offset, entry.GetSelection(), entry.GetValue(),
+                document[:offset] + "X" + document[offset:],
+            )
+        entry.SetValue("north\n")
+        position(len("north\n"))
+        assert entry.GetSelection() == (entry.GetLastPosition(),) * 2
         # Unicode mapping after non-BMP, combining marks and multiple line separators.
         entry.SetValue("north\nатака 🐉 e\u0301界\nunsent")
         position(len("north\nата"))

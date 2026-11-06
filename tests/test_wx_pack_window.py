@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 import threading
 import time
+import webbrowser
 
 import pytest
 
@@ -36,14 +37,14 @@ def frame():
 def panel(frame, monkeypatch):
     import asyncio
 
-    from genericmud.ui import wx_app
+    from genericmud.ui import session_panel
 
     async def no_session(_panel):
         return None
 
-    monkeypatch.setattr(wx_app.SessionPanel, "_start", no_session)
+    monkeypatch.setattr(session_panel.SessionPanel, "_start", no_session)
     loop = asyncio.new_event_loop()
-    session = wx_app.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
+    session = session_panel.SessionPanel(frame, loop, {}, World("Test", "mud.example", 4000))
     yield session
     session.close_notepads()
     session.Destroy()
@@ -124,10 +125,9 @@ def test_a_notepad_opens_beside_the_game_and_reopens_in_place(panel):
 
 
 def test_a_link_opens_in_the_browser_and_says_so(panel, monkeypatch):
-    from genericmud.ui import wx_app
 
     opened: list[str] = []
-    monkeypatch.setattr(wx_app.webbrowser, "open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url) or True)
     posted: list[dict] = []
     monkeypatch.setattr(panel, "_post", posted.append)
     outcome = _on_loop_thread(lambda: {"ok": panel.open_url("https://example.com/help")})
