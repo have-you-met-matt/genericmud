@@ -1,0 +1,64 @@
+name: PR 74 Intel macOS validation
+on:
+  push:
+    branches: [ codex/pr74-macos-validation ]
+permissions:
+  contents: read
+concurrency:
+  group: pr74-platform-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    env:
+      UV_HTTP_CONNECT_TIMEOUT: '60'
+      UV_HTTP_TIMEOUT: '120'
+      UV_HTTP_RETRIES: '3'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: f20d3a7cab0cce6a517b531968bc696f230fafff
+          persist-credentials: false
+      - name: Verify exact source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = 'f20d3a7cab0cce6a517b531968bc696f230fafff'
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-0 libgtk-3-dev libnotify4 libsdl2-2.0-0 libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 speech-dispatcher libspeechd2
+      - run: uv sync --all-extras --locked
+      - run: uv run python tools/fetch_bass.py build/bass
+      - run: uv run ruff check .
+      - name: Python tests (Linux native display)
+        if: runner.os == 'Linux'
+        env:
+          GENERICMUD_BASS_DIR: build/bass
+        run: xvfb-run -a uv run pytest -q --junitxml=build/platform-tests.xml
+      - name: Python tests (Windows and macOS)
+        if: runner.os != 'Linux'
+        env:
+          GENERICMUD_BASS_DIR: build/bass
+        run: uv run pytest -q --junitxml=build/platform-tests.xml
+      - name: Frontend checks
+        shell: bash
+        run: |
+          set -e
+          node --test tests/test_frontend_input.mjs tests/test_frontend_ws.mjs tests/test_frontend_menu.mjs tests/test_frontend_copyline.mjs
+          node --check frontend/src/app.js
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pr74-${{ runner.os }}-test-report
+          path: build/platform-tests.xml
+          retention-days: 7
