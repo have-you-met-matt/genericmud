@@ -1,0 +1,64 @@
+name: PR 74 platform validation
+on:
+  push:
+    branches: [ codex/pr74-platform-validation ]
+permissions:
+  contents: read
+jobs:
+  windows-diagnostic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 9044e00fb0385f38a29d0e28fe2ac815ed2e86d1
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --locked
+      - run: uv run python tools/fetch_bass.py build/bass
+      - name: Trace unchanged Windows native buffer
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GENERICMUD_BASS_DIR: build/bass
+        run: |
+          @'
+          import json
+          import sys
+          from pathlib import Path
+          from tests.test_command_entry import _probe
+          
+          output = Path('build/pr74-windows-position-trace.jsonl')
+          output.parent.mkdir(exist_ok=True)
+          def emit(data):
+              line = json.dumps(data, ensure_ascii=True)
+              print('PR74_POSITION ' + line, flush=True)
+              with output.open('a', encoding='utf-8') as stream:
+                  stream.write(line + '\n')
+          def trace(frame, event, arg):
+              name = frame.f_code.co_name
+              if name == 'check_document' and event == 'line' and frame.f_lineno <= 117:
+                  entry = frame.f_locals.get('entry')
+                  if entry is not None:
+                      emit({'event':'step','line':frame.f_lineno,'text':entry.GetValue(),
+                            'selection':entry.GetSelection(),'caret':entry.GetInsertionPoint(),
+                            'last':entry.GetLastPosition(),
+                            'ranges':[[i,entry.GetRange(0,i)] for i in range(entry.GetLastPosition()+1)]})
+              if name == 'position_from_offset' and event == 'return':
+                  control = frame.f_locals.get('self')
+                  if control is not None and len(control.GetValue()) < 40:
+                      emit({'event':'mapping','offset':frame.f_locals.get('offset'),
+                            'position':arg,'text':control.GetValue(),'last':control.GetLastPosition()})
+              return trace
+          sys.settrace(trace)
+          try:
+              _probe()
+          finally:
+              sys.settrace(None)
+          '@ | uv run python -
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pr74-baseline-windows-positions
+          path: build/pr74-windows-position-trace.jsonl
