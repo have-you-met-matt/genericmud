@@ -14,14 +14,18 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      UV_HTTP_CONNECT_TIMEOUT: '60'
+      UV_HTTP_TIMEOUT: '120'
+      UV_HTTP_RETRIES: '3'
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: 3edc85b0f273f5bf037ba8d37d966f392679fae0
+          ref: df6092a3aed3f6b3fdff846f15433fc4fa869297
           persist-credentials: false
       - name: Verify exact source
         shell: bash
-        run: test "$(git rev-parse HEAD)" = '3edc85b0f273f5bf037ba8d37d966f392679fae0'
+        run: test "$(git rev-parse HEAD)" = 'df6092a3aed3f6b3fdff846f15433fc4fa869297'
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
