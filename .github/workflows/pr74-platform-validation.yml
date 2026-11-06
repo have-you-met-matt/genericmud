@@ -21,11 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: df6092a3aed3f6b3fdff846f15433fc4fa869297
+          ref: f20d3a7cab0cce6a517b531968bc696f230fafff
           persist-credentials: false
       - name: Verify exact source
         shell: bash
-        run: test "$(git rev-parse HEAD)" = 'df6092a3aed3f6b3fdff846f15433fc4fa869297'
+        run: test "$(git rev-parse HEAD)" = 'f20d3a7cab0cce6a517b531968bc696f230fafff'
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
